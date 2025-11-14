@@ -49,12 +49,6 @@ class BuscarActivity : AppCompatActivity() {
                 Toast.makeText(this, "Error: Esta receta no tiene ID", Toast.LENGTH_SHORT).show()
             }
         }
-
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
-        }
     }
 
     private fun buscarRecetas(ingrediente: String, listView: ListView) {
@@ -68,7 +62,11 @@ class BuscarActivity : AppCompatActivity() {
                 }
 
                 if (listaDeRecetas.isNullOrEmpty()) {
-                    Toast.makeText(this@BuscarActivity, "No se encontraron recetas", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@BuscarActivity,
+                        "No se encontraron recetas",
+                        Toast.LENGTH_SHORT
+                    ).show()
                     listView.adapter = null
                 } else {
                     val nombresDeRecetas = listaDeRecetas!!.map { it.strMeal!! }
@@ -82,8 +80,15 @@ class BuscarActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                Toast.makeText(this@BuscarActivity, "Error de red: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@BuscarActivity, "Error de red: ${e.message}", Toast.LENGTH_LONG)
+                    .show()
             }
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
         }
     }
 }
