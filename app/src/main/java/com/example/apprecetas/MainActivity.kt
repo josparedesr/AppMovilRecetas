@@ -26,7 +26,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnFavoritos.setOnClickListener {
-            // Prepara un intent para ir a la FavoritosActivity
             val intent = Intent(this, FavoritosActivity::class.java)
             startActivity(intent)
         }

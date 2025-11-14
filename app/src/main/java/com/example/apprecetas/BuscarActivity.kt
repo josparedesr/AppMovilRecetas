@@ -30,7 +30,6 @@ class BuscarActivity : AppCompatActivity() {
         val lvResultado: ListView = findViewById(R.id.lv_resultado)
 
         btnBuscar.setOnClickListener {
-            // Convertimos a minúsculas, ¡buena práctica!
             val ingrediente = edBuscar.text.toString().trim().lowercase()
             if (ingrediente.isNotEmpty()) {
                 buscarRecetas(ingrediente, lvResultado)
@@ -42,11 +41,8 @@ class BuscarActivity : AppCompatActivity() {
         lvResultado.setOnItemClickListener { parent, view, position, id ->
             val recetaSeleccionada = listaDeRecetas?.get(position)
 
-            // --- CAMBIO AQUÍ ---
-            // Ahora usamos 'idMeal' en lugar de 'id'
             if (recetaSeleccionada?.idMeal != null) {
                 val intent = Intent(this, DetalleRecetaActivity::class.java)
-                // --- CAMBIO AQUÍ ---
                 intent.putExtra("MEAL_ID", recetaSeleccionada.idMeal)
                 startActivity(intent)
             } else {
@@ -67,8 +63,6 @@ class BuscarActivity : AppCompatActivity() {
             try {
                 val respuesta = RetrofitClient.api.buscarPorIngrediente(ingrediente)
 
-                // --- CAMBIO AQUÍ ---
-                // Filtramos usando los nombres nuevos del JSON
                 listaDeRecetas = respuesta.meals?.filter {
                     !it.idMeal.isNullOrBlank() && !it.strMeal.isNullOrBlank()
                 }
@@ -77,8 +71,6 @@ class BuscarActivity : AppCompatActivity() {
                     Toast.makeText(this@BuscarActivity, "No se encontraron recetas", Toast.LENGTH_SHORT).show()
                     listView.adapter = null
                 } else {
-                    // --- CAMBIO AQUÍ ---
-                    // Mapeamos usando 'strMeal' en lugar de 'nombre'
                     val nombresDeRecetas = listaDeRecetas!!.map { it.strMeal!! }
 
                     val adaptador = ArrayAdapter(

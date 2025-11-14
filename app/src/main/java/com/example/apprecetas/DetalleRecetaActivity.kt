@@ -89,7 +89,6 @@ class DetalleRecetaActivity : AppCompatActivity() {
 
     private fun construirListaIngredientes(receta: DetalleMeal): String {
         val builder = StringBuilder()
-        // Usamos los nombres directos del JSON
         if (!receta.strIngredient1.isNullOrBlank()) builder.append("• ${receta.strMeasure1} ${receta.strIngredient1}\n")
         if (!receta.strIngredient2.isNullOrBlank()) builder.append("• ${receta.strMeasure2} ${receta.strIngredient2}\n")
         if (!receta.strIngredient3.isNullOrBlank()) builder.append("• ${receta.strMeasure3} ${receta.strIngredient3}\n")
