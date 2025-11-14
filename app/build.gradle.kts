@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    id("com.google.devtools.ksp") version "1.9.22-1.0.17"
 }
 
 android {
@@ -58,6 +59,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
     // Adaptadores de Moshi para Kotlin (null-safety, data classes, KotlinJsonAdapterFactory)
     implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
-    // --- LIBRERÍA PARA CARGAR IMÁGENES DESDE INTERNET ---
+    // Libreria para cargar imagenes
     implementation("com.github.bumptech.glide:glide:4.16.0")
+    val room_version = "2.6.1"
+    implementation("androidx.room:room-runtime:$room_version")
+    implementation("androidx.room:room-ktx:$room_version") // Para Corutinas con Room
+    ksp("androidx.room:room-compiler:$room_version") // Compilador de Room
 }
