@@ -1,13 +1,19 @@
 package com.example.apprecetas
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.view.View // ¡Importante para la visibilidad!
+import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
@@ -20,31 +26,53 @@ import kotlinx.coroutines.launch
 
 class DetalleRecetaActivity : AppCompatActivity() {
 
-    // --- CAMBIO ---
-    // Añadimos la variable para el nuevo botón
     private lateinit var ivFoto: ImageView
     private lateinit var tvTitulo: TextView
     private lateinit var tvIngredientes: TextView
     private lateinit var tvInstrucciones: TextView
     private lateinit var btnFavoritos: Button
-    private lateinit var btnEliminar: Button // <-- ¡NUEVA!
+    private lateinit var btnEliminar: Button
+    private lateinit var tvLabelMiFoto: TextView
+    private lateinit var ivMiFoto: ImageView
+    private lateinit var btnAgregarMiFoto: Button
 
     private var recetaActual: DetalleMeal? = null
+    private var favoritoActual: RecetaFavorita? = null
     private val dao by lazy { AppDatabase.getDatabase(this).recetaDao() }
+
+    private val galleryLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            ivMiFoto.setImageURI(uri)
+            guardarUriDeFoto(uri)
+        }
+    }
+
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            abrirGaleria()
+        } else {
+            Toast.makeText(this, "Permiso de Galería denegado", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_detalle_receta)
 
-        // --- CAMBIO ---
-        // Conectamos el nuevo botón
         ivFoto = findViewById(R.id.iv_foto_receta)
         tvTitulo = findViewById(R.id.tv_titulo_receta)
         tvIngredientes = findViewById(R.id.tx_ingredientes)
         tvInstrucciones = findViewById(R.id.tx_instrucciones)
         btnFavoritos = findViewById(R.id.btn_agregarFavotitos)
-        btnEliminar = findViewById(R.id.btn_eliminarFavoritos) // <-- ¡NUEVA!
+        btnEliminar = findViewById(R.id.btn_eliminarFavoritos)
+        tvLabelMiFoto = findViewById(R.id.tv_label_mi_foto)
+        ivMiFoto = findViewById(R.id.iv_mi_foto)
+        btnAgregarMiFoto = findViewById(R.id.btn_agregarMiFoto)
 
         val mealId = intent.getStringExtra("MEAL_ID")
         if (mealId.isNullOrEmpty()) {
@@ -55,19 +83,16 @@ class DetalleRecetaActivity : AppCompatActivity() {
             revisarSiEsFavorita(mealId)
         }
 
-        // Lógica del botón AGREGAR
         btnFavoritos.setOnClickListener {
-            recetaActual?.let {
-                guardarRecetaFavorita(it)
-            }
+            recetaActual?.let { guardarRecetaFavorita(it) }
         }
 
-        // --- CAMBIO ---
-        // ¡Añadimos la lógica del botón ELIMINAR!
         btnEliminar.setOnClickListener {
-            recetaActual?.let {
-                eliminarRecetaFavorita(it)
-            }
+            favoritoActual?.let { eliminarRecetaFavorita(it) }
+        }
+
+        btnAgregarMiFoto.setOnClickListener {
+            revisarPermisoYAbrirGaleria()
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
@@ -77,29 +102,33 @@ class DetalleRecetaActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Revisa la BD y MUESTRA/OCULTA el botón correcto.
-     */
     private fun revisarSiEsFavorita(id: String) {
         lifecycleScope.launch {
             val receta = dao.obtenerPorId(id)
+            favoritoActual = receta
+
             if (receta != null) {
-                // Si la receta ya existe, OCULTAMOS "Agregar" y MOSTRAMOS "Eliminar"
                 btnFavoritos.visibility = View.GONE
                 btnEliminar.visibility = View.VISIBLE
+                tvLabelMiFoto.visibility = View.VISIBLE
+                ivMiFoto.visibility = View.VISIBLE
+                btnAgregarMiFoto.visibility = View.VISIBLE
+
+                if (!receta.miFotoUri.isNullOrEmpty()) {
+                    ivMiFoto.setImageURI(Uri.parse(receta.miFotoUri))
+                }
+
             } else {
-                // Si no existe, MOSTRAMOS "Agregar" y OCULTAMOS "Eliminar"
                 btnFavoritos.visibility = View.VISIBLE
                 btnEliminar.visibility = View.GONE
+                tvLabelMiFoto.visibility = View.GONE
+                ivMiFoto.visibility = View.GONE
+                btnAgregarMiFoto.visibility = View.GONE
             }
         }
     }
 
-    /**
-     * Guarda la receta y actualiza la visibilidad de los botones
-     */
     private fun guardarRecetaFavorita(receta: DetalleMeal) {
-        // Creamos el objeto para la BD
         val recetaParaGuardar = RecetaFavorita(
             idMeal = receta.idMeal!!,
             strMeal = receta.strMeal,
@@ -110,49 +139,58 @@ class DetalleRecetaActivity : AppCompatActivity() {
             try {
                 dao.insertarReceta(recetaParaGuardar)
                 Toast.makeText(this@DetalleRecetaActivity, "¡Guardado en Favoritos!", Toast.LENGTH_SHORT).show()
-
-                // --- CAMBIO ---
-                // Ocultamos "Agregar" y mostramos "Eliminar"
-                btnFavoritos.visibility = View.GONE
-                btnEliminar.visibility = View.VISIBLE
-
-            } catch (e: Exception) {
-                e.printStackTrace()
-                Toast.makeText(this@DetalleRecetaActivity, "Error al guardar: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
+                revisarSiEsFavorita(receta.idMeal!!)
+            } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
-    /**
-     * ¡NUEVA FUNCIÓN!
-     * Elimina la receta y actualiza la visibilidad de los botones
-     */
-    private fun eliminarRecetaFavorita(receta: DetalleMeal) {
-        // Creamos el objeto (con el ID) que queremos eliminar
-        val recetaParaEliminar = RecetaFavorita(
-            idMeal = receta.idMeal!!,
-            strMeal = receta.strMeal,
-            strMealThumb = receta.strMealThumb
-        )
-
+    private fun eliminarRecetaFavorita(receta: RecetaFavorita) {
         lifecycleScope.launch {
             try {
-                dao.eliminarReceta(recetaParaEliminar)
+                dao.eliminarReceta(receta)
                 Toast.makeText(this@DetalleRecetaActivity, "Eliminado de Favoritos", Toast.LENGTH_SHORT).show()
+                revisarSiEsFavorita(receta.idMeal)
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+    }
 
-                // --- CAMBIO ---
-                // Ocultamos "Eliminar" y mostramos "Agregar"
-                btnEliminar.visibility = View.GONE
-                btnFavoritos.visibility = View.VISIBLE
+    private fun revisarPermisoYAbrirGaleria() {
+        val permiso = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
 
-            } catch (e: Exception) {
-                e.printStackTrace()
-                Toast.makeText(this@DetalleRecetaActivity, "Error al eliminar: ${e.message}", Toast.LENGTH_SHORT).show()
+        when {
+            ContextCompat.checkSelfPermission(this, permiso) == PackageManager.PERMISSION_GRANTED -> {
+                abrirGaleria()
+            }
+            shouldShowRequestPermissionRationale(permiso) -> {
+                Toast.makeText(this, "Se necesita permiso para acceder a la galería", Toast.LENGTH_LONG).show()
+                permissionLauncher.launch(permiso)
+            }
+            else -> {
+                permissionLauncher.launch(permiso)
             }
         }
     }
 
-    // --- (El resto de funciones no cambian) ---
+    private fun abrirGaleria() {
+        galleryLauncher.launch("image/*")
+    }
+
+    private fun guardarUriDeFoto(uri: Uri) {
+        favoritoActual?.let { fav ->
+            val favoritoActualizado = fav.copy(miFotoUri = uri.toString())
+
+            lifecycleScope.launch {
+                try {
+                    dao.insertarReceta(favoritoActualizado)
+                    Toast.makeText(this@DetalleRecetaActivity, "Foto guardada", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) { e.printStackTrace() }
+            }
+        }
+    }
 
     private fun cargarDetalleReceta(id: String) {
         lifecycleScope.launch {

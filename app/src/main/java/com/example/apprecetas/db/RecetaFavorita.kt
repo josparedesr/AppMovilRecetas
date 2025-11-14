@@ -8,9 +8,9 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "recetas_favoritas")
 data class RecetaFavorita(
-    // Le decimos que el idMeal será la Llave Primaria (única)
     @PrimaryKey val idMeal: String,
-
     val strMeal: String?,
-    val strMealThumb: String?
+    val strMealThumb: String?,
+
+    val miFotoUri: String? = null
 )
