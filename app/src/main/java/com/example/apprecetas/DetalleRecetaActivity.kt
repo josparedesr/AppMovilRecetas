@@ -1,6 +1,7 @@
 package com.example.apprecetas
 
 import android.os.Bundle
+import android.view.View // ¡Importante para la visibilidad!
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
@@ -13,58 +14,60 @@ import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.example.apprecetas.api.DetalleMeal
 import com.example.apprecetas.api.RetrofitClient
-import com.example.apprecetas.db.AppDatabase // ¡Importamos la BD!
-import com.example.apprecetas.db.RecetaFavorita // ¡Importamos la Entidad!
+import com.example.apprecetas.db.AppDatabase
+import com.example.apprecetas.db.RecetaFavorita
 import kotlinx.coroutines.launch
 
 class DetalleRecetaActivity : AppCompatActivity() {
 
+    // --- CAMBIO ---
+    // Añadimos la variable para el nuevo botón
     private lateinit var ivFoto: ImageView
     private lateinit var tvTitulo: TextView
     private lateinit var tvIngredientes: TextView
     private lateinit var tvInstrucciones: TextView
     private lateinit var btnFavoritos: Button
+    private lateinit var btnEliminar: Button // <-- ¡NUEVA!
 
-    // Variable para guardar la receta actual
     private var recetaActual: DetalleMeal? = null
-
-    // Variable para acceder al DAO (menú de la BD)
-    private val dao by lazy {
-        AppDatabase.getDatabase(this).recetaDao()
-    }
+    private val dao by lazy { AppDatabase.getDatabase(this).recetaDao() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_detalle_receta)
 
+        // --- CAMBIO ---
+        // Conectamos el nuevo botón
         ivFoto = findViewById(R.id.iv_foto_receta)
         tvTitulo = findViewById(R.id.tv_titulo_receta)
         tvIngredientes = findViewById(R.id.tx_ingredientes)
         tvInstrucciones = findViewById(R.id.tx_instrucciones)
         btnFavoritos = findViewById(R.id.btn_agregarFavotitos)
+        btnEliminar = findViewById(R.id.btn_eliminarFavoritos) // <-- ¡NUEVA!
 
         val mealId = intent.getStringExtra("MEAL_ID")
-
         if (mealId.isNullOrEmpty()) {
             Toast.makeText(this, "Error: ID de receta no encontrado", Toast.LENGTH_LONG).show()
             finish()
         } else {
             cargarDetalleReceta(mealId)
-            // (Opcional) Revisamos si esta receta ya es favorita
             revisarSiEsFavorita(mealId)
         }
 
-        // --- ¡AQUÍ ESTÁ LA NUEVA LÓGICA DE GUARDADO! ---
+        // Lógica del botón AGREGAR
         btnFavoritos.setOnClickListener {
-            // Nos aseguramos de que ya tengamos una receta cargada
-            if (recetaActual == null) {
-                Toast.makeText(this, "Espera a que cargue la receta", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+            recetaActual?.let {
+                guardarRecetaFavorita(it)
             }
+        }
 
-            // Llamamos a la función que guarda en la BD
-            guardarRecetaFavorita()
+        // --- CAMBIO ---
+        // ¡Añadimos la lógica del botón ELIMINAR!
+        btnEliminar.setOnClickListener {
+            recetaActual?.let {
+                eliminarRecetaFavorita(it)
+            }
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
@@ -75,22 +78,82 @@ class DetalleRecetaActivity : AppCompatActivity() {
     }
 
     /**
-     * Revisa la BD y actualiza el botón si la receta ya está guardada.
+     * Revisa la BD y MUESTRA/OCULTA el botón correcto.
      */
     private fun revisarSiEsFavorita(id: String) {
         lifecycleScope.launch {
             val receta = dao.obtenerPorId(id)
             if (receta != null) {
-                // Si la receta ya existe, actualizamos el botón
-                btnFavoritos.text = "✅ Ya está en Favoritos"
-                btnFavoritos.isEnabled = false // Desactivamos el botón
+                // Si la receta ya existe, OCULTAMOS "Agregar" y MOSTRAMOS "Eliminar"
+                btnFavoritos.visibility = View.GONE
+                btnEliminar.visibility = View.VISIBLE
+            } else {
+                // Si no existe, MOSTRAMOS "Agregar" y OCULTAMOS "Eliminar"
+                btnFavoritos.visibility = View.VISIBLE
+                btnEliminar.visibility = View.GONE
             }
         }
     }
 
     /**
-     * Llama a la API (esto ya lo tenías)
+     * Guarda la receta y actualiza la visibilidad de los botones
      */
+    private fun guardarRecetaFavorita(receta: DetalleMeal) {
+        // Creamos el objeto para la BD
+        val recetaParaGuardar = RecetaFavorita(
+            idMeal = receta.idMeal!!,
+            strMeal = receta.strMeal,
+            strMealThumb = receta.strMealThumb
+        )
+
+        lifecycleScope.launch {
+            try {
+                dao.insertarReceta(recetaParaGuardar)
+                Toast.makeText(this@DetalleRecetaActivity, "¡Guardado en Favoritos!", Toast.LENGTH_SHORT).show()
+
+                // --- CAMBIO ---
+                // Ocultamos "Agregar" y mostramos "Eliminar"
+                btnFavoritos.visibility = View.GONE
+                btnEliminar.visibility = View.VISIBLE
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(this@DetalleRecetaActivity, "Error al guardar: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * ¡NUEVA FUNCIÓN!
+     * Elimina la receta y actualiza la visibilidad de los botones
+     */
+    private fun eliminarRecetaFavorita(receta: DetalleMeal) {
+        // Creamos el objeto (con el ID) que queremos eliminar
+        val recetaParaEliminar = RecetaFavorita(
+            idMeal = receta.idMeal!!,
+            strMeal = receta.strMeal,
+            strMealThumb = receta.strMealThumb
+        )
+
+        lifecycleScope.launch {
+            try {
+                dao.eliminarReceta(recetaParaEliminar)
+                Toast.makeText(this@DetalleRecetaActivity, "Eliminado de Favoritos", Toast.LENGTH_SHORT).show()
+
+                // --- CAMBIO ---
+                // Ocultamos "Eliminar" y mostramos "Agregar"
+                btnEliminar.visibility = View.GONE
+                btnFavoritos.visibility = View.VISIBLE
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(this@DetalleRecetaActivity, "Error al eliminar: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // --- (El resto de funciones no cambian) ---
+
     private fun cargarDetalleReceta(id: String) {
         lifecycleScope.launch {
             try {
@@ -101,13 +164,10 @@ class DetalleRecetaActivity : AppCompatActivity() {
                 if (recetaActual != null) {
                     tvTitulo.text = recetaActual!!.strMeal
                     tvInstrucciones.text = recetaActual!!.strInstructions
-
                     Glide.with(this@DetalleRecetaActivity)
                         .load(recetaActual!!.strMealThumb)
                         .into(ivFoto)
-
-                    val ingredientesTexto = construirListaIngredientes(recetaActual!!)
-                    tvIngredientes.text = ingredientesTexto
+                    tvIngredientes.text = construirListaIngredientes(recetaActual!!)
                 } else {
                     Toast.makeText(this@DetalleRecetaActivity, "Error: Receta no encontrada", Toast.LENGTH_LONG).show()
                 }
@@ -118,9 +178,6 @@ class DetalleRecetaActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Construye los ingredientes (esto ya lo tenías)
-     */
     private fun construirListaIngredientes(receta: DetalleMeal): String {
         val builder = StringBuilder()
         if (!receta.strIngredient1.isNullOrBlank()) builder.append("• ${receta.strMeasure1} ${receta.strIngredient1}\n")
@@ -129,35 +186,5 @@ class DetalleRecetaActivity : AppCompatActivity() {
         if (!receta.strIngredient4.isNullOrBlank()) builder.append("• ${receta.strMeasure4} ${receta.strIngredient4}\n")
         if (!receta.strIngredient5.isNullOrBlank()) builder.append("• ${receta.strMeasure5} ${receta.strIngredient5}\n")
         return builder.toString()
-    }
-
-    /**
-     * ¡NUEVA FUNCIÓN!
-     * Convierte el objeto de la API a un objeto de la BD y lo guarda.
-     */
-    private fun guardarRecetaFavorita() {
-        // Creamos un objeto RecetaFavorita (de la BD) usando
-        // los datos de recetaActual (de la API)
-        val recetaParaGuardar = RecetaFavorita(
-            idMeal = recetaActual!!.idMeal!!, // Sabemos que no es nulo
-            strMeal = recetaActual!!.strMeal,
-            strMealThumb = recetaActual!!.strMealThumb
-        )
-
-        // Lanzamos una corutina para guardar en la BD (es una operación "suspend")
-        lifecycleScope.launch {
-            try {
-                dao.insertarReceta(recetaParaGuardar)
-
-                // Si todo sale bien, mostramos un Toast y actualizamos el botón
-                Toast.makeText(this@DetalleRecetaActivity, "¡Guardado en Favoritos!", Toast.LENGTH_SHORT).show()
-                btnFavoritos.text = "✅ Guardado"
-                btnFavoritos.isEnabled = false
-
-            } catch (e: Exception) {
-                e.printStackTrace()
-                Toast.makeText(this@DetalleRecetaActivity, "Error al guardar: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }
     }
 }
