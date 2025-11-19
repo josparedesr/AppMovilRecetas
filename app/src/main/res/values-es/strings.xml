@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AppRecetas</string>
+    <string name="welcome_message">¡Bienvenido!</string>
+    <string name="btn_search">Buscar Recetas (Online)</string>
+    <string name="btn_favorites">Mis Favoritos (Offline)</string>
+    <string name="current_lang">Español</string>
+
+    <string name="hint_search">Ingresa un ingrediente</string>
+    <string name="btn_search_action">Buscar</string>
+    <string name="toast_searching">Buscando recetas...</string>
+    <string name="error_no_results">No se encontraron recetas</string>
+    <string name="error_empty">Por favor, ingresa un ingrediente</string>
+
+    <string name="label_ingredients">Ingredientes:</string>
+    <string name="label_instructions">Instrucciones:</string>
+    <string name="btn_add_fav">Agregar a Favoritos</string>
+    <string name="btn_remove_fav">Eliminar de Favoritos</string>
+    <string name="label_my_photo">¡Mi Versión del Plato!</string>
+    <string name="btn_add_photo">Agregar mi Foto (Galería)</string>
+    <string name="toast_saved">¡Guardado en Favoritos!</string>
+    <string name="toast_deleted">Eliminado de Favoritos</string>
+    <string name="title_favorites">Mis Recetas Favoritas</string>
+    <string name="empty_favorites">No tienes recetas favoritas</string>
+</resources>

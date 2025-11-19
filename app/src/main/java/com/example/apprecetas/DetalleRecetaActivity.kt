@@ -23,6 +23,14 @@ import com.example.apprecetas.api.DetalleMeal
 import com.example.apprecetas.api.RetrofitClient
 import com.example.apprecetas.db.AppDatabase
 import com.example.apprecetas.db.RecetaFavorita
+
+// --- NUEVO: IMPORTS PARA LA TRADUCCIÓN (ML KIT) ---
+import com.google.mlkit.common.model.DownloadConditions
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.Translation
+import com.google.mlkit.nl.translate.TranslatorOptions
+// --------------------------------------------------
+
 import kotlinx.coroutines.launch
 
 class DetalleRecetaActivity : AppCompatActivity() {
@@ -51,7 +59,6 @@ class DetalleRecetaActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-
             ivMiFoto.setImageURI(uri)
             guardarUriDeFoto(uri)
         }
@@ -69,6 +76,7 @@ class DetalleRecetaActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        LocaleHelper.applyLanguage(this)
         enableEdgeToEdge()
         setContentView(R.layout.activity_detalle_receta)
 
@@ -84,7 +92,6 @@ class DetalleRecetaActivity : AppCompatActivity() {
 
         val mealId = intent.getStringExtra("MEAL_ID")
         if (mealId.isNullOrEmpty()) {
-            Toast.makeText(this, "Error: ID de receta no encontrado", Toast.LENGTH_LONG).show()
             finish()
         } else {
             cargarDetalleReceta(mealId)
@@ -110,6 +117,81 @@ class DetalleRecetaActivity : AppCompatActivity() {
         }
     }
 
+    // --- NUEVO: FUNCIONES DE TRADUCCIÓN ---
+
+    private fun intentarTraducirReceta(receta: DetalleMeal, ingredientesTexto: String) {
+        // 1. Verificamos si el idioma actual de la app es Español ("es")
+        val idiomaActual = LocaleHelper.getLanguage(this)
+        if (idiomaActual != "es") {
+            return // Si está en inglés, no hacemos nada
+        }
+
+        // 2. Configuramos el traductor de Inglés a Español
+        val options = TranslatorOptions.Builder()
+            .setSourceLanguage(TranslateLanguage.ENGLISH)
+            .setTargetLanguage(TranslateLanguage.SPANISH)
+            .build()
+        val englishSpanishTranslator = Translation.getClient(options)
+
+        // 3. Condiciones para descargar el modelo (necesita Wifi/Datos)
+        val conditions = DownloadConditions.Builder().requireWifi().build()
+
+        // Aviso visual
+        Toast.makeText(this, getString(R.string.toast_searching), Toast.LENGTH_SHORT).show() // "Traduciendo..."
+
+        // 4. Descargamos el modelo (si no existe) y traducimos
+        englishSpanishTranslator.downloadModelIfNeeded(conditions)
+            .addOnSuccessListener {
+                // A. Traducir Título
+                receta.strMeal?.let { titulo ->
+                    englishSpanishTranslator.translate(titulo)
+                        .addOnSuccessListener { traducido -> tvTitulo.text = traducido }
+                }
+                // B. Traducir Instrucciones
+                receta.strInstructions?.let { instrucciones ->
+                    englishSpanishTranslator.translate(instrucciones)
+                        .addOnSuccessListener { traducido -> tvInstrucciones.text = traducido }
+                }
+                // C. Traducir Ingredientes
+                englishSpanishTranslator.translate(ingredientesTexto)
+                    .addOnSuccessListener { traducido -> tvIngredientes.text = traducido }
+            }
+            .addOnFailureListener {
+                // Si falla la descarga (sin internet), se queda en inglés
+            }
+    }
+    // --------------------------------------
+
+    private fun cargarDetalleReceta(id: String) {
+        lifecycleScope.launch {
+            try {
+                val respuesta = RetrofitClient.api.buscarDetallePorId(id)
+                val receta = respuesta.meals?.firstOrNull()
+                recetaActual = receta
+
+                if (recetaActual != null) {
+                    tvTitulo.text = recetaActual!!.strMeal
+                    tvInstrucciones.text = recetaActual!!.strInstructions
+                    val ingredientesTexto = construirListaIngredientes(recetaActual!!)
+                    tvIngredientes.text = ingredientesTexto
+
+                    Glide.with(this@DetalleRecetaActivity)
+                        .load(recetaActual!!.strMealThumb)
+                        .into(ivFoto)
+
+                    // --- NUEVO: LLAMADA AL TRADUCTOR ---
+                    intentarTraducirReceta(recetaActual!!, ingredientesTexto)
+                    // -----------------------------------
+
+                } else {
+                    Toast.makeText(this@DetalleRecetaActivity, getString(R.string.error_no_results), Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     private fun revisarSiEsFavorita(id: String) {
         lifecycleScope.launch {
             val receta = dao.obtenerPorId(id)
@@ -127,10 +209,8 @@ class DetalleRecetaActivity : AppCompatActivity() {
                         ivMiFoto.setImageURI(Uri.parse(receta.miFotoUri))
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        Toast.makeText(this@DetalleRecetaActivity, "No se pudo cargar tu foto", Toast.LENGTH_SHORT).show()
                     }
                 }
-
             } else {
                 btnFavoritos.visibility = View.VISIBLE
                 btnEliminar.visibility = View.GONE
@@ -151,7 +231,7 @@ class DetalleRecetaActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 dao.insertarReceta(recetaParaGuardar)
-                Toast.makeText(this@DetalleRecetaActivity, "¡Guardado en Favoritos!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@DetalleRecetaActivity, getString(R.string.toast_saved), Toast.LENGTH_SHORT).show()
                 revisarSiEsFavorita(receta.idMeal!!)
             } catch (e: Exception) { e.printStackTrace() }
         }
@@ -161,7 +241,7 @@ class DetalleRecetaActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 dao.eliminarReceta(receta)
-                Toast.makeText(this@DetalleRecetaActivity, "Eliminado de Favoritos", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@DetalleRecetaActivity, getString(R.string.toast_deleted), Toast.LENGTH_SHORT).show()
                 revisarSiEsFavorita(receta.idMeal)
             } catch (e: Exception) { e.printStackTrace() }
         }
@@ -195,36 +275,11 @@ class DetalleRecetaActivity : AppCompatActivity() {
     private fun guardarUriDeFoto(uri: Uri) {
         favoritoActual?.let { fav ->
             val favoritoActualizado = fav.copy(miFotoUri = uri.toString())
-
             lifecycleScope.launch {
                 try {
                     dao.insertarReceta(favoritoActualizado)
                     Toast.makeText(this@DetalleRecetaActivity, "Foto guardada", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) { e.printStackTrace() }
-            }
-        }
-    }
-
-    private fun cargarDetalleReceta(id: String) {
-        lifecycleScope.launch {
-            try {
-                val respuesta = RetrofitClient.api.buscarDetallePorId(id)
-                val receta = respuesta.meals?.firstOrNull()
-                recetaActual = receta
-
-                if (recetaActual != null) {
-                    tvTitulo.text = recetaActual!!.strMeal
-                    tvInstrucciones.text = recetaActual!!.strInstructions
-                    Glide.with(this@DetalleRecetaActivity)
-                        .load(recetaActual!!.strMealThumb)
-                        .into(ivFoto)
-                    tvIngredientes.text = construirListaIngredientes(recetaActual!!)
-                } else {
-                    Toast.makeText(this@DetalleRecetaActivity, "Error: Receta no encontrada", Toast.LENGTH_LONG).show()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                Toast.makeText(this@DetalleRecetaActivity, "Error de red: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
     }

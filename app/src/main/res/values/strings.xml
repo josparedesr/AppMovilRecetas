@@ -1,3 +1,24 @@
 <resources>
-    <string name="app_name">AppRecetas</string>
+    <string name="app_name">AppRecipes</string>
+    <string name="welcome_message">Welcome!</string>
+    <string name="btn_search">Search Recipes (Online)</string>
+    <string name="btn_favorites">My Favorites (Offline)</string>
+    <string name="current_lang">English</string>
+
+    <string name="hint_search">Enter ingredient</string>
+    <string name="btn_search_action">Search</string>
+    <string name="toast_searching">Searching recipes...</string>
+    <string name="error_no_results">No recipes found</string>
+    <string name="error_empty">Please enter an ingredient</string>
+
+    <string name="label_ingredients">Ingredients:</string>
+    <string name="label_instructions">Instructions:</string>
+    <string name="btn_add_fav">Add to Favorites</string>
+    <string name="btn_remove_fav">Remove from Favorites</string>
+    <string name="label_my_photo">My Version of the Dish!</string>
+    <string name="btn_add_photo">Add my Photo (Gallery)</string>
+    <string name="toast_saved">Saved to Favorites!</string>
+    <string name="toast_deleted">Removed from Favorites</string>
+    <string name="title_favorites">My Favorite Recipes</string>
+    <string name="empty_favorites">You have no favorite recipes</string>
 </resources>

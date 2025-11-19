@@ -14,27 +14,97 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.apprecetas.api.Meal
 import com.example.apprecetas.api.RetrofitClient
+import com.google.mlkit.common.model.DownloadConditions
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.Translation
+import com.google.mlkit.nl.translate.TranslatorOptions
 import kotlinx.coroutines.launch
 
 class BuscarActivity : AppCompatActivity() {
 
     private var listaDeRecetas: List<Meal>? = null
 
+    // --- DICCIONARIO LATINO (Correcciones manuales) ---
+    // Aquí forzamos las palabras para que la API las entienda
+    private val diccionarioLatino = mapOf(
+        "carne" to "beef",
+        "res" to "beef",
+        "bistec" to "beef",
+        "ternera" to "beef",
+        "chancho" to "pork",
+        "cerdo" to "pork",
+        "puerco" to "pork",
+        "pollo" to "chicken",
+        "pescado" to "fish",
+        "camarones" to "shrimp",
+        "gamba" to "shrimp",
+        "palta" to "avocado",
+        "aguacate" to "avocado",
+        "queso" to "cheese",
+        "papa" to "Floury potatoes"
+    )
+    // --------------------------------------------------
+
+    private val translatorEsToEn = Translation.getClient(
+        TranslatorOptions.Builder()
+            .setSourceLanguage(TranslateLanguage.SPANISH)
+            .setTargetLanguage(TranslateLanguage.ENGLISH)
+            .build()
+    )
+
+    private val translatorEnToEs = Translation.getClient(
+        TranslatorOptions.Builder()
+            .setSourceLanguage(TranslateLanguage.ENGLISH)
+            .setTargetLanguage(TranslateLanguage.SPANISH)
+            .build()
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        LocaleHelper.applyLanguage(this)
         enableEdgeToEdge()
         setContentView(R.layout.buscar_activity_main)
+
+        descargarModelos()
 
         val edBuscar: EditText = findViewById(R.id.ed_buscar)
         val btnBuscar: Button = findViewById(R.id.btn_buscar)
         val lvResultado: ListView = findViewById(R.id.lv_resultado)
 
         btnBuscar.setOnClickListener {
-            val ingrediente = edBuscar.text.toString().trim().lowercase()
-            if (ingrediente.isNotEmpty()) {
-                buscarRecetas(ingrediente, lvResultado)
+            // Convertimos a minúsculas para buscar en el diccionario
+            val textoUsuario = edBuscar.text.toString().trim().lowercase()
+
+            if (textoUsuario.isNotEmpty()) {
+                val idiomaActual = LocaleHelper.getLanguage(this)
+
+                if (idiomaActual == "es") {
+                    // --- LÓGICA LATINA ---
+                    // 1. Primero revisamos nuestro diccionario manual
+                    if (diccionarioLatino.containsKey(textoUsuario)) {
+                        // ¡Bingo! Está en el diccionario (ej: carne -> beef)
+                        val terminoCorregido = diccionarioLatino[textoUsuario]!!
+                        // Buscamos directo con la palabra corregida
+                        buscarRecetas(terminoCorregido, lvResultado, true)
+                    } else {
+                        // 2. Si no está en el diccionario, usamos el Traductor de Google
+                        Toast.makeText(this, getString(R.string.toast_searching), Toast.LENGTH_SHORT).show() // "Buscando..."
+
+                        translatorEsToEn.translate(textoUsuario)
+                            .addOnSuccessListener { textoTraducido ->
+                                buscarRecetas(textoTraducido, lvResultado, true)
+                            }
+                            .addOnFailureListener {
+                                // Si falla, buscamos tal cual
+                                buscarRecetas(textoUsuario, lvResultado, false)
+                            }
+                    }
+                } else {
+                    // Si estamos en inglés, buscamos directo
+                    buscarRecetas(textoUsuario, lvResultado, false)
+                }
             } else {
-                Toast.makeText(this, "Por favor, ingresa un ingrediente", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.error_empty), Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -46,13 +116,26 @@ class BuscarActivity : AppCompatActivity() {
                 intent.putExtra("MEAL_ID", recetaSeleccionada.idMeal)
                 startActivity(intent)
             } else {
-                Toast.makeText(this, "Error: Esta receta no tiene ID", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Error ID", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
         }
     }
 
-    private fun buscarRecetas(ingrediente: String, listView: ListView) {
-        Toast.makeText(this, "Buscando recetas...", Toast.LENGTH_SHORT).show()
+    private fun descargarModelos() {
+        val conditions = DownloadConditions.Builder().requireWifi().build()
+        translatorEsToEn.downloadModelIfNeeded(conditions)
+        translatorEnToEs.downloadModelIfNeeded(conditions)
+    }
+
+    private fun buscarRecetas(ingrediente: String, listView: ListView, traducirResultados: Boolean) {
+        // No mostramos toast aquí para no saturar, ya lo mostramos arriba
+
         lifecycleScope.launch {
             try {
                 val respuesta = RetrofitClient.api.buscarPorIngrediente(ingrediente)
@@ -62,33 +145,41 @@ class BuscarActivity : AppCompatActivity() {
                 }
 
                 if (listaDeRecetas.isNullOrEmpty()) {
-                    Toast.makeText(
-                        this@BuscarActivity,
-                        "No se encontraron recetas",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(this@BuscarActivity, getString(R.string.error_no_results), Toast.LENGTH_SHORT).show()
                     listView.adapter = null
                 } else {
-                    val nombresDeRecetas = listaDeRecetas!!.map { it.strMeal!! }
+                    val nombresOriginales = listaDeRecetas!!.map { it.strMeal!! }
 
-                    val adaptador = ArrayAdapter(
-                        this@BuscarActivity,
-                        android.R.layout.simple_list_item_1,
-                        nombresDeRecetas
-                    )
-                    listView.adapter = adaptador
+                    if (traducirResultados) {
+                        val adaptador = ArrayAdapter(
+                            this@BuscarActivity,
+                            android.R.layout.simple_list_item_1,
+                            mutableListOf<String>()
+                        )
+                        listView.adapter = adaptador
+
+                        for (nombreIngles in nombresOriginales) {
+                            translatorEnToEs.translate(nombreIngles)
+                                .addOnSuccessListener { nombreEspanol ->
+                                    adaptador.add(nombreEspanol)
+                                }
+                                .addOnFailureListener {
+                                    adaptador.add(nombreIngles)
+                                }
+                        }
+                    } else {
+                        val adaptador = ArrayAdapter(
+                            this@BuscarActivity,
+                            android.R.layout.simple_list_item_1,
+                            nombresOriginales
+                        )
+                        listView.adapter = adaptador
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                Toast.makeText(this@BuscarActivity, "Error de red: ${e.message}", Toast.LENGTH_LONG)
-                    .show()
+                // Evitamos mostrar error si es solo porque no encontró nada con "carne" antes de traducir
             }
-        }
-
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
-            insets
         }
     }
 }

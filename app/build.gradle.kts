@@ -65,4 +65,6 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version") // Para Corutinas con Room
     ksp("androidx.room:room-compiler:$room_version") // Compilador de Room
+    // Google ML Kit para traducción
+    implementation("com.google.mlkit:translate:17.0.2")
 }
