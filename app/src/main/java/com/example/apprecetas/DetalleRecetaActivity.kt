@@ -1,6 +1,7 @@
 package com.example.apprecetas
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -41,9 +42,16 @@ class DetalleRecetaActivity : AppCompatActivity() {
     private val dao by lazy { AppDatabase.getDatabase(this).recetaDao() }
 
     private val galleryLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
+        ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
+            try {
+                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                contentResolver.takePersistableUriPermission(uri, takeFlags)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
             ivMiFoto.setImageURI(uri)
             guardarUriDeFoto(uri)
         }
@@ -115,7 +123,12 @@ class DetalleRecetaActivity : AppCompatActivity() {
                 btnAgregarMiFoto.visibility = View.VISIBLE
 
                 if (!receta.miFotoUri.isNullOrEmpty()) {
-                    ivMiFoto.setImageURI(Uri.parse(receta.miFotoUri))
+                    try {
+                        ivMiFoto.setImageURI(Uri.parse(receta.miFotoUri))
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        Toast.makeText(this@DetalleRecetaActivity, "No se pudo cargar tu foto", Toast.LENGTH_SHORT).show()
+                    }
                 }
 
             } else {
@@ -176,7 +189,7 @@ class DetalleRecetaActivity : AppCompatActivity() {
     }
 
     private fun abrirGaleria() {
-        galleryLauncher.launch("image/*")
+        galleryLauncher.launch(arrayOf("image/*"))
     }
 
     private fun guardarUriDeFoto(uri: Uri) {
