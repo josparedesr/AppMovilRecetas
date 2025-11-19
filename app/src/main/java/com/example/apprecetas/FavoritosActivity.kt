@@ -2,7 +2,6 @@ package com.example.apprecetas
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.ListView
 import android.widget.TextView
@@ -15,44 +14,47 @@ import androidx.lifecycle.lifecycleScope
 import com.example.apprecetas.db.AppDatabase
 import com.example.apprecetas.db.RecetaDao
 import com.example.apprecetas.db.RecetaFavorita
+import com.google.mlkit.common.model.DownloadConditions
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.Translation
+import com.google.mlkit.nl.translate.TranslatorOptions
 import kotlinx.coroutines.launch
 
 class FavoritosActivity : AppCompatActivity() {
 
-    // --- Variables de clase ---
     private lateinit var lvFavoritos: ListView
     private lateinit var tvTituloFavoritos: TextView
 
-    // Variable para acceder al DAO (menú de la BD)
     private val dao: RecetaDao by lazy {
         AppDatabase.getDatabase(this).recetaDao()
     }
 
-    // Variable para guardar la lista de favoritos
-    // (la necesitamos para saber en qué item se hizo clic)
     private var listaDeFavoritos: List<RecetaFavorita> = emptyList()
+
+    private val translatorEnToEs = Translation.getClient(
+        TranslatorOptions.Builder()
+            .setSourceLanguage(TranslateLanguage.ENGLISH)
+            .setTargetLanguage(TranslateLanguage.SPANISH)
+            .build()
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        LocaleHelper.applyLanguage(this)
         enableEdgeToEdge()
-        // Cargamos el XML que diseñaste (el #4)
         setContentView(R.layout.activity_favoritos)
 
-        // 1. Conectamos los componentes del XML
+        translatorEnToEs.downloadModelIfNeeded(DownloadConditions.Builder().requireWifi().build())
+
         lvFavoritos = findViewById(R.id.lv_favoritos)
         tvTituloFavoritos = findViewById(R.id.tx_favoritos)
 
-        // 2. Programamos el clic de la lista de favoritos
+        tvTituloFavoritos.text = getString(R.string.title_favorites)
+
         lvFavoritos.setOnItemClickListener { parent, view, position, id ->
-            // Obtenemos la receta de nuestra lista local
             val recetaSeleccionada = listaDeFavoritos[position]
-
-            // Creamos un intent para abrir el Detalle
             val intent = Intent(this, DetalleRecetaActivity::class.java)
-
-            // Le pasamos el ID, igual que en BuscarActivity
             intent.putExtra("MEAL_ID", recetaSeleccionada.idMeal)
-
             startActivity(intent)
         }
 
@@ -63,45 +65,44 @@ class FavoritosActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * onResume() se llama CADA VEZ que la pantalla se vuelve visible.
-     * Esto es mejor que onCreate() porque si el usuario guarda un favorito
-     * y presiona "Atrás", la lista se actualizará al instante.
-     */
     override fun onResume() {
         super.onResume()
-        // Llamamos a la función que carga los datos de la BD
         cargarFavoritos()
     }
 
-    /**
-     * Función que lee la BD (en segundo plano) y actualiza el ListView
-     */
     private fun cargarFavoritos() {
         lifecycleScope.launch {
             try {
-                // 1. ¡Leemos la base de datos!
                 listaDeFavoritos = dao.obtenerTodas()
 
-                // 2. Verificamos si encontramos algo
                 if (listaDeFavoritos.isEmpty()) {
-                    // Si no hay favoritos, mostramos un mensaje
-                    tvTituloFavoritos.text = "No tienes recetas favoritas"
-                    lvFavoritos.adapter = null // Limpiamos la lista
+                    tvTituloFavoritos.text = getString(R.string.empty_favorites)
+                    lvFavoritos.adapter = null
                 } else {
-                    // Si SÍ hay favoritos...
-                    tvTituloFavoritos.text = "Mis Recetas Favoritas"
+                    tvTituloFavoritos.text = getString(R.string.title_favorites)
 
-                    // 3. Extraemos solo los nombres para el adaptador
-                    val nombresFavoritos = listaDeFavoritos.map { it.strMeal }
+                    val nombresParaMostrar = listaDeFavoritos.map { it.strMeal ?: "" }.toMutableList()
 
-                    // 4. Creamos y asignamos el adaptador
                     val adaptador = ArrayAdapter(
                         this@FavoritosActivity,
                         android.R.layout.simple_list_item_1,
-                        nombresFavoritos
+                        nombresParaMostrar
                     )
                     lvFavoritos.adapter = adaptador
+
+                    if (LocaleHelper.getLanguage(this@FavoritosActivity) == "es") {
+                        listaDeFavoritos.forEachIndexed { index, receta ->
+                            val nombreOriginal = receta.strMeal ?: ""
+
+                            translatorEnToEs.translate(nombreOriginal)
+                                .addOnSuccessListener { nombreTraducido ->
+                                    if (index < nombresParaMostrar.size) {
+                                        nombresParaMostrar[index] = nombreTraducido
+                                        adaptador.notifyDataSetChanged()
+                                    }
+                                }
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
