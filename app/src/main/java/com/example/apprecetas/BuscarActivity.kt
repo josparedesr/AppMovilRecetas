@@ -178,7 +178,6 @@ class BuscarActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                // Evitamos mostrar error si es solo porque no encontró nada con "carne" antes de traducir
             }
         }
     }

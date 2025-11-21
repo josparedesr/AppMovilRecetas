@@ -22,7 +22,6 @@ interface RecetaDao {
     @Query("SELECT * FROM recetas_favoritas WHERE idMeal = :id LIMIT 1")
     suspend fun obtenerPorId(id: String): RecetaFavorita?
 
-    // --- ¡AÑADE ESTA NUEVA FUNCIÓN! ---
     @Delete
     suspend fun eliminarReceta(receta: RecetaFavorita)
 }

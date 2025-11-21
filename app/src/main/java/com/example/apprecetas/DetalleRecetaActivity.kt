@@ -117,13 +117,12 @@ class DetalleRecetaActivity : AppCompatActivity() {
         }
     }
 
-    // --- NUEVO: FUNCIONES DE TRADUCCIÓN ---
 
     private fun intentarTraducirReceta(receta: DetalleMeal, ingredientesTexto: String) {
         // 1. Verificamos si el idioma actual de la app es Español ("es")
         val idiomaActual = LocaleHelper.getLanguage(this)
         if (idiomaActual != "es") {
-            return // Si está en inglés, no hacemos nada
+            return
         }
 
         // 2. Configuramos el traductor de Inglés a Español
