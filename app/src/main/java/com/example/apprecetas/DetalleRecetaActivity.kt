@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
@@ -13,8 +14,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
@@ -23,15 +26,15 @@ import com.example.apprecetas.api.DetalleMeal
 import com.example.apprecetas.api.RetrofitClient
 import com.example.apprecetas.db.AppDatabase
 import com.example.apprecetas.db.RecetaFavorita
-
-// --- NUEVO: IMPORTS PARA LA TRADUCCIÓN (ML KIT) ---
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
-// --------------------------------------------------
-
 import kotlinx.coroutines.launch
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class DetalleRecetaActivity : AppCompatActivity() {
 
@@ -49,6 +52,8 @@ class DetalleRecetaActivity : AppCompatActivity() {
     private var favoritoActual: RecetaFavorita? = null
     private val dao by lazy { AppDatabase.getDatabase(this).recetaDao() }
 
+    private var uriCamaraTemporal: Uri? = null
+
     private val galleryLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -59,18 +64,29 @@ class DetalleRecetaActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            ivMiFoto.setImageURI(uri)
-            guardarUriDeFoto(uri)
+            mostrarYGuardarFoto(uri)
         }
     }
 
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
+    private val cameraLauncher = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && uriCamaraTemporal != null) {
+            mostrarYGuardarFoto(uriCamaraTemporal!!)
+        }
+    }
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.CAMERA] == true) {
+            abrirCamara()
+        } else if (permissions[Manifest.permission.READ_MEDIA_IMAGES] == true ||
+            permissions[Manifest.permission.READ_EXTERNAL_STORAGE] == true) {
             abrirGaleria()
         } else {
-            Toast.makeText(this, "Permiso de Galería denegado", Toast.LENGTH_SHORT).show()
+            // Usamos el texto traducible
+            Toast.makeText(this, getString(R.string.toast_permissions_needed), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -107,7 +123,7 @@ class DetalleRecetaActivity : AppCompatActivity() {
         }
 
         btnAgregarMiFoto.setOnClickListener {
-            revisarPermisoYAbrirGaleria()
+            mostrarDialogoSeleccion()
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
@@ -117,49 +133,100 @@ class DetalleRecetaActivity : AppCompatActivity() {
         }
     }
 
+    private fun mostrarDialogoSeleccion() {
+        // --- CORRECCIÓN: Usamos getString para que se traduzca ---
+        val opciones = arrayOf(
+            getString(R.string.option_camera),  // "Tomar Foto" o "Take Photo"
+            getString(R.string.option_gallery)  // "Elegir de Galería" o "Choose from Gallery"
+        )
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle(getString(R.string.dialog_photo_title)) // Título traducido
+        builder.setItems(opciones) { _, which ->
+            when (which) {
+                0 -> revisarPermisoCamara()
+                1 -> revisarPermisoGaleria()
+            }
+        }
+        builder.show()
+    }
 
-    private fun intentarTraducirReceta(receta: DetalleMeal, ingredientesTexto: String) {
-        // 1. Verificamos si el idioma actual de la app es Español ("es")
-        val idiomaActual = LocaleHelper.getLanguage(this)
-        if (idiomaActual != "es") {
-            return
+    private fun revisarPermisoCamara() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            abrirCamara()
+        } else {
+            requestPermissionLauncher.launch(arrayOf(Manifest.permission.CAMERA))
+        }
+    }
+
+    private fun abrirCamara() {
+        try {
+            val photoFile = crearArchivoDeImagen()
+            uriCamaraTemporal = FileProvider.getUriForFile(
+                this,
+                "${applicationContext.packageName}.fileprovider",
+                photoFile
+            )
+            cameraLauncher.launch(uriCamaraTemporal)
+        } catch (e: Exception) {
+            // Texto traducido
+            Toast.makeText(this, getString(R.string.error_camera), Toast.LENGTH_SHORT).show()
+            e.printStackTrace()
+        }
+    }
+
+    private fun crearArchivoDeImagen(): File {
+        val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val storageDir: File? = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+        return File.createTempFile("JPEG_${timeStamp}_", ".jpg", storageDir)
+    }
+
+    private fun revisarPermisoGaleria() {
+        val permiso = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
         }
 
-        // 2. Configuramos el traductor de Inglés a Español
+        if (ContextCompat.checkSelfPermission(this, permiso) == PackageManager.PERMISSION_GRANTED) {
+            abrirGaleria()
+        } else {
+            requestPermissionLauncher.launch(arrayOf(permiso))
+        }
+    }
+
+    private fun abrirGaleria() {
+        galleryLauncher.launch(arrayOf("image/*"))
+    }
+
+    private fun mostrarYGuardarFoto(uri: Uri) {
+        ivMiFoto.setImageURI(uri)
+        favoritoActual?.let { fav ->
+            val favoritoActualizado = fav.copy(miFotoUri = uri.toString())
+            lifecycleScope.launch {
+                dao.insertarReceta(favoritoActualizado)
+                // Texto traducido
+                Toast.makeText(this@DetalleRecetaActivity, getString(R.string.toast_photo_saved), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun intentarTraducirReceta(receta: DetalleMeal, ingredientesTexto: String) {
+        val idiomaActual = LocaleHelper.getLanguage(this)
+        if (idiomaActual != "es") return
+
         val options = TranslatorOptions.Builder()
             .setSourceLanguage(TranslateLanguage.ENGLISH)
             .setTargetLanguage(TranslateLanguage.SPANISH)
             .build()
-        val englishSpanishTranslator = Translation.getClient(options)
-
-        // 3. Condiciones para descargar el modelo (necesita Wifi/Datos)
+        val translator = Translation.getClient(options)
         val conditions = DownloadConditions.Builder().requireWifi().build()
 
-        // Aviso visual
-        Toast.makeText(this, getString(R.string.toast_searching), Toast.LENGTH_SHORT).show() // "Traduciendo..."
-
-        // 4. Descargamos el modelo (si no existe) y traducimos
-        englishSpanishTranslator.downloadModelIfNeeded(conditions)
-            .addOnSuccessListener {
-                // A. Traducir Título
-                receta.strMeal?.let { titulo ->
-                    englishSpanishTranslator.translate(titulo)
-                        .addOnSuccessListener { traducido -> tvTitulo.text = traducido }
-                }
-                // B. Traducir Instrucciones
-                receta.strInstructions?.let { instrucciones ->
-                    englishSpanishTranslator.translate(instrucciones)
-                        .addOnSuccessListener { traducido -> tvInstrucciones.text = traducido }
-                }
-                // C. Traducir Ingredientes
-                englishSpanishTranslator.translate(ingredientesTexto)
-                    .addOnSuccessListener { traducido -> tvIngredientes.text = traducido }
-            }
-            .addOnFailureListener {
-                // Si falla la descarga (sin internet), se queda en inglés
-            }
+        translator.downloadModelIfNeeded(conditions).addOnSuccessListener {
+            receta.strMeal?.let { translator.translate(it).addOnSuccessListener { t -> tvTitulo.text = t } }
+            receta.strInstructions?.let { translator.translate(it).addOnSuccessListener { t -> tvInstrucciones.text = t } }
+            translator.translate(ingredientesTexto).addOnSuccessListener { t -> tvIngredientes.text = t }
+        }
     }
-    // --------------------------------------
 
     private fun cargarDetalleReceta(id: String) {
         lifecycleScope.launch {
@@ -171,23 +238,15 @@ class DetalleRecetaActivity : AppCompatActivity() {
                 if (recetaActual != null) {
                     tvTitulo.text = recetaActual!!.strMeal
                     tvInstrucciones.text = recetaActual!!.strInstructions
-                    val ingredientesTexto = construirListaIngredientes(recetaActual!!)
-                    tvIngredientes.text = ingredientesTexto
+                    val ingredientes = construirListaIngredientes(recetaActual!!)
+                    tvIngredientes.text = ingredientes
+                    Glide.with(this@DetalleRecetaActivity).load(recetaActual!!.strMealThumb).into(ivFoto)
 
-                    Glide.with(this@DetalleRecetaActivity)
-                        .load(recetaActual!!.strMealThumb)
-                        .into(ivFoto)
-
-                    // --- NUEVO: LLAMADA AL TRADUCTOR ---
-                    intentarTraducirReceta(recetaActual!!, ingredientesTexto)
-                    // -----------------------------------
-
+                    intentarTraducirReceta(recetaActual!!, ingredientes)
                 } else {
                     Toast.makeText(this@DetalleRecetaActivity, getString(R.string.error_no_results), Toast.LENGTH_LONG).show()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
@@ -195,20 +254,14 @@ class DetalleRecetaActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val receta = dao.obtenerPorId(id)
             favoritoActual = receta
-
             if (receta != null) {
                 btnFavoritos.visibility = View.GONE
                 btnEliminar.visibility = View.VISIBLE
                 tvLabelMiFoto.visibility = View.VISIBLE
                 ivMiFoto.visibility = View.VISIBLE
                 btnAgregarMiFoto.visibility = View.VISIBLE
-
                 if (!receta.miFotoUri.isNullOrEmpty()) {
-                    try {
-                        ivMiFoto.setImageURI(Uri.parse(receta.miFotoUri))
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                    try { ivMiFoto.setImageURI(Uri.parse(receta.miFotoUri)) } catch (e: Exception) {}
                 }
             } else {
                 btnFavoritos.visibility = View.VISIBLE
@@ -221,65 +274,19 @@ class DetalleRecetaActivity : AppCompatActivity() {
     }
 
     private fun guardarRecetaFavorita(receta: DetalleMeal) {
-        val recetaParaGuardar = RecetaFavorita(
-            idMeal = receta.idMeal!!,
-            strMeal = receta.strMeal,
-            strMealThumb = receta.strMealThumb
-        )
-
+        val nuevo = RecetaFavorita(idMeal = receta.idMeal!!, strMeal = receta.strMeal, strMealThumb = receta.strMealThumb)
         lifecycleScope.launch {
-            try {
-                dao.insertarReceta(recetaParaGuardar)
-                Toast.makeText(this@DetalleRecetaActivity, getString(R.string.toast_saved), Toast.LENGTH_SHORT).show()
-                revisarSiEsFavorita(receta.idMeal!!)
-            } catch (e: Exception) { e.printStackTrace() }
+            dao.insertarReceta(nuevo)
+            Toast.makeText(this@DetalleRecetaActivity, getString(R.string.toast_saved), Toast.LENGTH_SHORT).show()
+            revisarSiEsFavorita(receta.idMeal!!)
         }
     }
 
     private fun eliminarRecetaFavorita(receta: RecetaFavorita) {
         lifecycleScope.launch {
-            try {
-                dao.eliminarReceta(receta)
-                Toast.makeText(this@DetalleRecetaActivity, getString(R.string.toast_deleted), Toast.LENGTH_SHORT).show()
-                revisarSiEsFavorita(receta.idMeal)
-            } catch (e: Exception) { e.printStackTrace() }
-        }
-    }
-
-    private fun revisarPermisoYAbrirGaleria() {
-        val permiso = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-
-        when {
-            ContextCompat.checkSelfPermission(this, permiso) == PackageManager.PERMISSION_GRANTED -> {
-                abrirGaleria()
-            }
-            shouldShowRequestPermissionRationale(permiso) -> {
-                Toast.makeText(this, "Se necesita permiso para acceder a la galería", Toast.LENGTH_LONG).show()
-                permissionLauncher.launch(permiso)
-            }
-            else -> {
-                permissionLauncher.launch(permiso)
-            }
-        }
-    }
-
-    private fun abrirGaleria() {
-        galleryLauncher.launch(arrayOf("image/*"))
-    }
-
-    private fun guardarUriDeFoto(uri: Uri) {
-        favoritoActual?.let { fav ->
-            val favoritoActualizado = fav.copy(miFotoUri = uri.toString())
-            lifecycleScope.launch {
-                try {
-                    dao.insertarReceta(favoritoActualizado)
-                    Toast.makeText(this@DetalleRecetaActivity, "Foto guardada", Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) { e.printStackTrace() }
-            }
+            dao.eliminarReceta(receta)
+            Toast.makeText(this@DetalleRecetaActivity, getString(R.string.toast_deleted), Toast.LENGTH_SHORT).show()
+            revisarSiEsFavorita(receta.idMeal)
         }
     }
 

@@ -5,13 +5,11 @@
     <string name="btn_search">Buscar Recetas</string>
     <string name="btn_favorites">Mis Favoritos</string>
     <string name="current_lang">Español</string>
-
     <string name="hint_search">Ingresa un ingrediente</string>
     <string name="btn_search_action">Buscar</string>
     <string name="toast_searching">Buscando recetas...</string>
     <string name="error_no_results">No se encontraron recetas</string>
     <string name="error_empty">Por favor, ingresa un ingrediente</string>
-
     <string name="label_ingredients">Ingredientes:</string>
     <string name="label_instructions">Instrucciones:</string>
     <string name="btn_add_fav">Agregar a Favoritos</string>
@@ -22,4 +20,9 @@
     <string name="toast_deleted">Eliminado de Favoritos</string>
     <string name="title_favorites">Mis Recetas Favoritas</string>
     <string name="empty_favorites">No tienes recetas favoritas</string>
+    <string name="dialog_photo_title">Agrega tu foto</string>
+    <string name="option_camera">Tomar Foto</string> <string name="option_gallery">Elegir de Galería</string>
+    <string name="toast_permissions_needed">Se necesitan permisos</string>
+    <string name="toast_photo_saved">¡Foto guardada!</string>
+    <string name="error_camera">Error al abrir cámara</string>
 </resources>
