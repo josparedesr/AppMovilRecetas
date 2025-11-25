@@ -24,8 +24,6 @@ class BuscarActivity : AppCompatActivity() {
 
     private var listaDeRecetas: List<Meal>? = null
 
-    // --- DICCIONARIO LATINO (Correcciones manuales) ---
-    // Aquí forzamos las palabras para que la API las entienda
     private val diccionarioLatino = mapOf(
         "carne" to "beef",
         "res" to "beef",
@@ -95,12 +93,10 @@ class BuscarActivity : AppCompatActivity() {
                                 buscarRecetas(textoTraducido, lvResultado, true)
                             }
                             .addOnFailureListener {
-                                // Si falla, buscamos tal cual
                                 buscarRecetas(textoUsuario, lvResultado, false)
                             }
                     }
                 } else {
-                    // Si estamos en inglés, buscamos directo
                     buscarRecetas(textoUsuario, lvResultado, false)
                 }
             } else {
@@ -134,7 +130,6 @@ class BuscarActivity : AppCompatActivity() {
     }
 
     private fun buscarRecetas(ingrediente: String, listView: ListView, traducirResultados: Boolean) {
-        // No mostramos toast aquí para no saturar, ya lo mostramos arriba
 
         lifecycleScope.launch {
             try {
