@@ -12,6 +12,10 @@ import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import java.util.Locale
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import com.example.apprecetas.api.RetrofitClient
+import android.widget.Toast
 
 class MainActivity : AppCompatActivity() {
 
@@ -27,7 +31,8 @@ class MainActivity : AppCompatActivity() {
         val btnBuscar: ExtendedFloatingActionButton = findViewById(R.id.btn_buscar)
         val btnFavoritos: ExtendedFloatingActionButton = findViewById(R.id.btn_favoritos)
         val btnLenguaje: FloatingActionButton = findViewById(R.id.btn_lenguaje)
-        val txBienvenida: TextView = findViewById(R.id.tx_bienvenido)
+        val txBienvenido: TextView = findViewById(R.id.tx_bienvenido)
+        val btnRandom: ExtendedFloatingActionButton = findViewById(R.id.btn_random) // <-- CONECTAR
 
         // Configurar listeners
         btnBuscar.setOnClickListener {
@@ -41,6 +46,31 @@ class MainActivity : AppCompatActivity() {
         // 2. Lógica del botón de idioma
         btnLenguaje.setOnClickListener {
             cambiarIdioma()
+        }
+
+        btnRandom.setOnClickListener {
+            // Mostramos un mensajito rápido
+            Toast.makeText(this, "Buscando suerte...", Toast.LENGTH_SHORT).show()
+
+            lifecycleScope.launch {
+                try {
+                    // 1. Llamamos a la API (Random)
+                    val respuesta = RetrofitClient.api.obtenerRecetaAleatoria()
+                    val receta = respuesta.meals?.firstOrNull()
+
+                    if (receta != null && !receta.idMeal.isNullOrEmpty()) {
+                        // 2. Si encontramos una, abrimos el Detalle con ese ID
+                        val intent = Intent(this@MainActivity, DetalleRecetaActivity::class.java)
+                        intent.putExtra("MEAL_ID", receta.idMeal)
+                        startActivity(intent)
+                    } else {
+                        Toast.makeText(this@MainActivity, "Intenta de nuevo", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    Toast.makeText(this@MainActivity, "Error de conexión", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->

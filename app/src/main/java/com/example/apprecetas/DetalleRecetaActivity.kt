@@ -54,6 +54,9 @@ class DetalleRecetaActivity : AppCompatActivity() {
 
     private var uriCamaraTemporal: Uri? = null
 
+    private lateinit var btnYoutube: Button
+    private lateinit var btnShare: Button
+
     private val galleryLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -105,6 +108,8 @@ class DetalleRecetaActivity : AppCompatActivity() {
         tvLabelMiFoto = findViewById(R.id.tv_label_mi_foto)
         ivMiFoto = findViewById(R.id.iv_mi_foto)
         btnAgregarMiFoto = findViewById(R.id.btn_agregarMiFoto)
+        btnYoutube = findViewById(R.id.btn_youtube)
+        btnShare = findViewById(R.id.btn_share)
 
         val mealId = intent.getStringExtra("MEAL_ID")
         if (mealId.isNullOrEmpty()) {
@@ -124,6 +129,35 @@ class DetalleRecetaActivity : AppCompatActivity() {
 
         btnAgregarMiFoto.setOnClickListener {
             mostrarDialogoSeleccion()
+        }
+
+        btnYoutube.setOnClickListener {
+            val url = recetaActual?.strYoutube
+            if (!url.isNullOrEmpty()) {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, getString(R.string.error_no_video), Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnShare.setOnClickListener {
+            recetaActual?.let { receta ->
+                // Preparamos el mensaje
+                val mensajeBase = getString(R.string.share_text)
+                // Usamos los ingredientes que ya construimos en el TextView
+                val ingredientes = tvIngredientes.text.toString()
+                // Formateamos el mensaje (Nombre + Ingredientes)
+                val mensajeFinal = String.format(mensajeBase, receta.strMeal, ingredientes)
+
+                val sendIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, mensajeFinal)
+                    type = "text/plain"
+                }
+                val shareIntent = Intent.createChooser(sendIntent, null)
+                startActivity(shareIntent)
+            }
         }
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->

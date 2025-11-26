@@ -14,4 +14,7 @@ interface ApiService {
     suspend fun buscarDetallePorId(
         @Query("i") id: String
     ): DetalleResponse
+
+    @GET("api/json/v1/1/random.php")
+    suspend fun obtenerRecetaAleatoria(): DetalleResponse
 }

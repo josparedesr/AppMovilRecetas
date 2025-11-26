@@ -25,4 +25,9 @@
     <string name="toast_permissions_needed">Permissions needed</string>
     <string name="toast_photo_saved">Photo saved!</string>
     <string name="error_camera">Error opening camera</string>
+    <string name="btn_share">Share Recipe</string>
+    <string name="btn_youtube">Watch Video</string>
+    <string name="share_text">Check out this recipe! %1$s. Ingredients: %2$s</string>
+    <string name="error_no_video">No video available for this recipe</string>
+    <string name="btn_random">Surprise Me! (Random)</string>
 </resources>

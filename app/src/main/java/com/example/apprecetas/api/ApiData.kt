@@ -1,6 +1,6 @@
 package com.example.apprecetas.api
 
-
+//Clase para busqueda
 data class Meal(
     val idMeal: String?,
     val strMeal: String?,
@@ -10,13 +10,14 @@ data class Meal(
 data class MealResponse(
     val meals: List<Meal>?
 )
-
+//Clase para el Detalle
 data class DetalleMeal(
     val idMeal: String?,
     val strMeal: String?,
     val strMealThumb: String?,
     val strInstructions: String?,
 
+    val strYoutube: String?,
     val strIngredient1: String?,
     val strIngredient2: String?,
     val strIngredient3: String?,

@@ -25,4 +25,9 @@
     <string name="toast_permissions_needed">Se necesitan permisos</string>
     <string name="toast_photo_saved">¡Foto guardada!</string>
     <string name="error_camera">Error al abrir cámara</string>
+    <string name="btn_share">Compartir Receta</string>
+    <string name="btn_youtube">Ver Video</string>
+    <string name="share_text">¡Mira esta receta que encontré! %1$s. Ingredientes: %2$s</string>
+    <string name="error_no_video">Esta receta no tiene video disponible</string>
+    <string name="btn_random">¡Sorpréndeme! (Random)</string>
 </resources>
