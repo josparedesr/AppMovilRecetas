@@ -10,6 +10,7 @@ data class Meal(
 data class MealResponse(
     val meals: List<Meal>?
 )
+
 //Clase para el Detalle
 data class DetalleMeal(
     val idMeal: String?,
