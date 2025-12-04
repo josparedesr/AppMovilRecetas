@@ -2,6 +2,7 @@ package com.example.apprecetas
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -142,7 +143,9 @@ class BuscarActivity : AppCompatActivity() {
                 if (listaDeRecetas.isNullOrEmpty()) {
                     Toast.makeText(this@BuscarActivity, getString(R.string.error_no_results), Toast.LENGTH_SHORT).show()
                     listView.adapter = null
+                    listView.visibility = View.GONE
                 } else {
+                    listView.visibility = View.VISIBLE
                     val nombresOriginales = listaDeRecetas!!.map { it.strMeal!! }
 
                     if (traducirResultados) {
